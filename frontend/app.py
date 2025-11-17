@@ -1,9 +1,15 @@
 import asyncio
 import json
 import os
+import sys
+from pathlib import Path
 from typing import Dict, List
 
 import streamlit as st
+
+ROOT_DIR = Path(__file__).resolve().parents[1]
+if str(ROOT_DIR) not in sys.path:
+    sys.path.insert(0, str(ROOT_DIR))
 
 from core.config import get_settings
 from core.schemas import ComplaintPayload, CompanyDetails
