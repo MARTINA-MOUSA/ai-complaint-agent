@@ -27,11 +27,13 @@ class LlamaJsonAgent:
     async def aask(self, prompt: str) -> Dict[str, Any]:
         full_prompt = f"{self.system_prompt}\n\n{prompt}"
 
-        # Async-compatible LLMs
+        # Try async first, fallback to sync in thread pool
         if hasattr(self.llm, "acomplete"):
             raw = await self.llm.acomplete(full_prompt)
+        elif hasattr(self.llm, "complete"):
+            raw = await asyncio.to_thread(self.llm.complete, full_prompt)
         else:
-            raise AttributeError("LLM does not support async completion")
+            raise AttributeError("LLM does not support async or sync completion")
 
         return self._ensure_json(raw)
 
@@ -75,17 +77,22 @@ class LlamaJsonAgent:
             except Exception:
                 candidate = str(raw)
 
-        # 2) Generic "text" field
+        # 2) Generic "text" field (for GeminiWrapper SimpleNamespace)
         elif hasattr(raw, "text"):
-            candidate = raw.text or ""
+            text_val = getattr(raw, "text", None)
+            candidate = text_val if text_val else ""
 
         # 3) Response.message.content
-        elif hasattr(raw, "message"):
-            candidate = getattr(raw.message, "content", raw.message)
+        elif hasattr(raw, "message") and raw.message:
+            candidate = getattr(raw.message, "content", str(raw.message))
 
         # 4) Fallback
         else:
-            candidate = str(raw)
+            candidate = str(raw) if raw else ""
+
+        # Validate we have content
+        if not candidate or not candidate.strip():
+            raise ValueError("Agent returned empty or invalid response. Raw: " + str(raw)[:200])
 
         # Extract JSON content
         json_str = LlamaJsonAgent._extract_json(candidate)
@@ -97,28 +104,29 @@ class LlamaJsonAgent:
 
     @staticmethod
     def _extract_json(text: str) -> str:
-     cleaned = text.strip()
+        cleaned = text.strip()
 
-    # 1) استخراج أي بلوك بين ``` ```
-     if "```" in cleaned:
-        segments = cleaned.split("```")
-        # بلوك JSON هو أي جزء يحتوي قوسين {}
-        for seg in segments:
-            if "{" in seg and "}" in seg:
-                cleaned = seg
-                break
+        # 1) استخراج أي بلوك بين ``` ```
+        if "```" in cleaned:
+            segments = cleaned.split("```")
+            # بلوك JSON هو أي جزء يحتوي قوسين {}
+            for seg in segments:
+                if "{" in seg and "}" in seg:
+                    cleaned = seg
+                    break
 
-        # إزالة كلمة json أو JSON في بداية البلوك
-        cleaned = re.sub(r"^\s*(json)?", "", cleaned, flags=re.IGNORECASE).strip()
+            # إزالة كلمة json أو JSON في بداية البلوك
+            cleaned = re.sub(r"^\s*(json)?", "", cleaned, flags=re.IGNORECASE).strip()
 
-    # 2) قص أول JSON كامل في النص
-     start = cleaned.find("{")
-     end = cleaned.rfind("}")
-     if start != -1 and end != -1 and end > start:
-        return LlamaJsonAgent._balance_braces(cleaned[start:end+1])
+        # 2) قص أول JSON كامل في النص
+        start = cleaned.find("{")
+        end = cleaned.rfind("}")
+        if start != -1 and end != -1 and end > start:
+            return LlamaJsonAgent._balance_braces(cleaned[start:end+1])
 
-    # 3) fallback
-     return "{}"
+        # 3) fallback
+        return "{}"
+
     @staticmethod
     def _balance_braces(text: str) -> str:
         """Fix unbalanced braces from model output."""
