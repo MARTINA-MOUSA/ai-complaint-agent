@@ -1,0 +1,8 @@
+.env
+*.env
+__pycache__/
+node_modules/
+*.log
+.venv/
+.pytest_cache/
+ai_complaint_agent.egg-info/
