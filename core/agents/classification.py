@@ -1,31 +1,32 @@
-"""Agent for classifying complaints."""
+"""Classification agent using LlamaIndex."""
 
 from __future__ import annotations
 
 from typing import Any
 
-from core.agents.base import TextAgent
+from core.agents.base import LlamaIndexAgent
 from core.schemas import ComplaintPayload
 
 
 CLASSIFICATION_SYSTEM_PROMPT = """
 أنت خبير في تصنيف شكاوى العملاء. مهمتك تحديد نوع الشكوى بدقة.
+أجب دائماً بالعربية فقط.
 """
 
 
 class ClassificationAgent:
-    """Agent that classifies the complaint type."""
+    """Agent that classifies the complaint type using LlamaIndex."""
 
     def __init__(self, *, llm: Any, verbose: bool = False) -> None:
-        self.agent = TextAgent(
-            system_prompt=CLASSIFICATION_SYSTEM_PROMPT,
+        self.agent_wrapper = LlamaIndexAgent(
             llm=llm,
+            system_prompt=CLASSIFICATION_SYSTEM_PROMPT,
             verbose=verbose,
         )
 
     async def aclassify(self, payload: ComplaintPayload) -> str:
         """Classify the complaint and return classification text."""
-        prompt = f"""
+        message = f"""
         قم بتصنيف الشكوى التالية:
 
         الشركة: {payload.company.as_label()}
@@ -37,5 +38,4 @@ class ClassificationAgent:
 
         اكتب الإجابة بالعربية فقط.
         """
-        return await self.agent.aask(prompt)
-
+        return await self.agent_wrapper.achat(message)

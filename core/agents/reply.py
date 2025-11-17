@@ -1,25 +1,26 @@
-"""Agent for creating formal customer reply."""
+"""Reply agent using LlamaIndex."""
 
 from __future__ import annotations
 
 from typing import Any
 
-from core.agents.base import TextAgent
+from core.agents.base import LlamaIndexAgent
 from core.schemas import ComplaintPayload
 
 
 REPLY_SYSTEM_PROMPT = """
 أنت خبير في كتابة ردود خدمة العملاء. مهمتك كتابة ردود رسمية، لطيفة، وتعاطفية.
+أجب دائماً بالعربية فقط.
 """
 
 
 class ReplyAgent:
-    """Agent that creates formal customer reply."""
+    """Agent that creates formal customer reply using LlamaIndex."""
 
     def __init__(self, *, llm: Any, verbose: bool = False) -> None:
-        self.agent = TextAgent(
-            system_prompt=REPLY_SYSTEM_PROMPT,
+        self.agent_wrapper = LlamaIndexAgent(
             llm=llm,
+            system_prompt=REPLY_SYSTEM_PROMPT,
             verbose=verbose,
         )
 
@@ -32,7 +33,7 @@ class ReplyAgent:
     ) -> str:
         """Create formal reply and return reply text."""
         extra = f"\nملاحظات إضافية: {payload.notes}" if payload.notes else ""
-        prompt = f"""
+        message = f"""
         قم بكتابة رد رسمي للعميل بناءً على التحليل التالي:
 
         الشركة: {payload.company.as_label()}
@@ -52,5 +53,4 @@ class ReplyAgent:
 
         اكتب الرد بالعربية فقط، واجعله 3-4 فقرات.
         """
-        return await self.agent.aask(prompt)
-
+        return await self.agent_wrapper.achat(message)

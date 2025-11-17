@@ -1,103 +1,113 @@
-"""Base agent for text-based output."""
+"""Base agent using LlamaIndex ReActAgent framework."""
 
 from __future__ import annotations
 
-import asyncio
 from typing import Any, Optional
 
+from llama_index.core.agent import ReActAgent
+from llama_index.core.base.llms.types import CompletionResponse
+from llama_index.core.llms.types import ChatMessage, MessageRole
+from llama_index.core.tools import FunctionTool
 
-class TextAgent:
-    """Agent that returns plain text output instead of JSON."""
+
+class LlamaIndexAgent:
+    """Base agent wrapper using LlamaIndex ReActAgent."""
 
     def __init__(
         self,
         *,
+        llm: Any,
         system_prompt: str,
-        llm: Optional[Any] = None,
+        tools: Optional[list[FunctionTool]] = None,
         verbose: bool = False,
     ) -> None:
-        if llm is None:
-            raise ValueError("llm is required for TextAgent")
         self.llm = llm
         self.system_prompt = system_prompt
+        self.tools = tools or []
         self.verbose = verbose
 
-    async def aask(self, prompt: str) -> str:
-        """Ask the LLM and return plain text."""
-        full_prompt = f"{self.system_prompt}\n\n{prompt}"
+        # Create a simple LLM adapter for LlamaIndex
+        self.llm_adapter = self._create_llm_adapter(llm)
 
-        # Try async first, fallback to sync in thread pool
-        if hasattr(self.llm, "acomplete"):
-            raw = await self.llm.acomplete(full_prompt)
-        elif hasattr(self.llm, "complete"):
-            raw = await asyncio.to_thread(self.llm.complete, full_prompt)
-        else:
-            raise AttributeError("LLM does not support async or sync completion")
+        # Create ReActAgent
+        self.agent = ReActAgent.from_tools(
+            tools=self.tools,
+            llm=self.llm_adapter,
+            system_prompt=system_prompt,
+            verbose=verbose,
+        )
 
-        return self._extract_text(raw)
+    def _create_llm_adapter(self, llm: Any):
+        """Create LlamaIndex LLM adapter from custom LLM."""
+        from llama_index.core.llms import CustomLLM
+        from llama_index.core.base.llms.types import LLMMetadata
 
-    def ask(self, prompt: str) -> str:
-        """Ask the LLM synchronously and return plain text."""
-        full_prompt = f"{self.system_prompt}\n\n{prompt}"
+        class GeminiLLMAdapter(CustomLLM):
+            def __init__(self, wrapped_llm):
+                super().__init__(
+                    model="gemini-2.5-flash",
+                    metadata=LLMMetadata(
+                        num_output=4096,
+                        is_chat_model=False,
+                    ),
+                )
+                self._wrapped = wrapped_llm
 
-        if hasattr(self.llm, "complete"):
-            raw = self.llm.complete(full_prompt)
-        else:
-            raise AttributeError("LLM does not support sync completion")
+            def complete(self, prompt: str, **kwargs):
+                result = self._wrapped.complete(prompt)
+                text = self._extract_text(result)
+                return CompletionResponse(text=text)
 
-        return self._extract_text(raw)
+            async def acomplete(self, prompt: str, **kwargs):
+                result = await self._wrapped.acomplete(prompt)
+                text = self._extract_text(result)
+                return CompletionResponse(text=text)
+
+            @staticmethod
+            def _extract_text(raw: Any) -> str:
+                if isinstance(raw, str):
+                    return raw
+                if hasattr(raw, "text"):
+                    return getattr(raw, "text", "")
+                if hasattr(raw, "response"):
+                    return getattr(raw, "response", "")
+                return str(raw)
+
+        return GeminiLLMAdapter(llm)
+
+    async def achat(self, message: str) -> str:
+        """Chat with the agent asynchronously."""
+        try:
+            response = await self.agent.achat(message)
+            return str(response)
+        except Exception as e:
+            # Fallback: use LLM directly if agent fails
+            if self.verbose:
+                print(f"Agent chat failed, using direct LLM: {e}")
+            full_prompt = f"{self.system_prompt}\n\n{message}"
+            result = await self.llm.acomplete(full_prompt)
+            return self._extract_text(result)
+
+    def chat(self, message: str) -> str:
+        """Chat with the agent synchronously."""
+        try:
+            response = self.agent.chat(message)
+            return str(response)
+        except Exception as e:
+            # Fallback: use LLM directly if agent fails
+            if self.verbose:
+                print(f"Agent chat failed, using direct LLM: {e}")
+            full_prompt = f"{self.system_prompt}\n\n{message}"
+            result = self.llm.complete(full_prompt)
+            return self._extract_text(result)
 
     @staticmethod
     def _extract_text(raw: Any) -> str:
-        """Extract text from various LLM response formats."""
+        """Extract text from LLM response."""
         if isinstance(raw, str):
             return raw.strip()
-
-        if raw is None:
-            raise ValueError("Agent returned empty payload.")
-
-        # Extract text from different response formats
-        text = ""
-        if hasattr(raw, "candidates"):
-            try:
-                parts = raw.candidates[0].content.parts
-                text = "".join(getattr(p, "text", str(p)) for p in parts)
-            except Exception:
-                text = str(raw)
-        elif hasattr(raw, "text"):
-            text = getattr(raw, "text", "")
-        elif hasattr(raw, "response"):
-            text = getattr(raw, "response", "")
-        elif hasattr(raw, "message") and raw.message:
-            text = getattr(raw.message, "content", str(raw.message))
-        else:
-            text = str(raw)
-
-        # Clean up namespace wrappers if present
-        if "namespace(" in text:
-            # Try to extract content from namespace(response='...') or namespace(text='...')
-            if "response=" in text or "text=" in text:
-                # Find the JSON or text content
-                start = text.find("{")
-                if start == -1:
-                    # No JSON, try to find quoted content
-                    import re
-                    match = re.search(r"(?:response|text)\s*=\s*['\"](.*?)['\"]", text, re.DOTALL)
-                    if match:
-                        text = match.group(1)
-                else:
-                    # Extract JSON object
-                    brace_count = 0
-                    for i in range(start, len(text)):
-                        if text[i] == "{":
-                            brace_count += 1
-                        elif text[i] == "}":
-                            brace_count -= 1
-                            if brace_count == 0:
-                                text = text[start:i+1]
-                                break
-
-        if not text.strip():
-            raise ValueError("Agent returned empty or invalid response.")
-
-        return text.strip()
+        if hasattr(raw, "text"):
+            return getattr(raw, "text", "").strip()
+        if hasattr(raw, "response"):
+            return getattr(raw, "response", "").strip()
+        return str(raw).strip()
