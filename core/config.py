@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 from functools import lru_cache
+import asyncio
+from types import SimpleNamespace
 from typing import Literal, Optional
 
-from llama_index.llms.gemini import Gemini
+import google.generativeai as genai
 from llama_index.llms.openai import OpenAI
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -26,11 +28,7 @@ class AppSettings(BaseSettings):
         if not self.llm_api_key:
             raise ValueError("LLM_API_KEY missing. Please set it in your environment.")
         if self.llm_provider == "gemini":
-            return Gemini(
-                model=self.llm_model,
-                api_key=self.llm_api_key,
-                temperature=0.2,
-            )
+            return _GeminiWrapper(model=self.llm_model, api_key=self.llm_api_key, temperature=0.2)
         return OpenAI(
             model=self.llm_model,
             api_key=self.llm_api_key,
@@ -42,4 +40,31 @@ class AppSettings(BaseSettings):
 @lru_cache(maxsize=1)
 def get_settings() -> AppSettings:
     return AppSettings()  # type: ignore[arg-type]
+
+
+class _GeminiWrapper:
+    """Minimal wrapper exposing complete/acomplete for Gemini via google.generativeai."""
+
+    def __init__(self, model: str, api_key: str, temperature: float = 0.2) -> None:
+        genai.configure(api_key=api_key)
+        self._model = genai.GenerativeModel(model_name=model)
+        self._generation_config = {"temperature": temperature}
+
+    def complete(self, prompt: str):
+        text = self._generate_text(prompt)
+        return SimpleNamespace(text=text)
+
+    async def acomplete(self, prompt: str):
+        loop = asyncio.get_event_loop()
+        text = await loop.run_in_executor(None, self._generate_text, prompt)
+        return SimpleNamespace(text=text)
+
+    def _generate_text(self, prompt: str) -> str:
+        response = self._model.generate_content(prompt, generation_config=self._generation_config)
+        if hasattr(response, "text") and response.text:
+            return response.text
+        if response.candidates:
+            parts = response.candidates[0].content.parts
+            return "".join(getattr(part, "text", str(part)) for part in parts)
+        return ""
 
