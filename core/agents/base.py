@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import re
 from typing import Any, Dict, Optional
 
 class LlamaJsonAgent:
@@ -50,10 +51,26 @@ class LlamaJsonAgent:
             candidate = raw.response
         else:
             candidate = str(raw)
+        json_str = LlamaJsonAgent._extract_json(candidate)
         try:
-            return json.loads(candidate)
+            return json.loads(json_str)
         except json.JSONDecodeError as exc:
             raise ValueError(f"Agent returned non-JSON payload: {candidate}") from exc
+
+    @staticmethod
+    def _extract_json(text: str) -> str:
+        cleaned = text.strip()
+        if cleaned.startswith("```"):
+            cleaned = cleaned.strip("`")
+            if cleaned.startswith("json"):
+                cleaned = cleaned[4:]
+        cleaned = cleaned.strip()
+        if cleaned.startswith("{") and cleaned.endswith("}"):
+            return cleaned
+        match = re.search(r"\{.*\}", cleaned, re.DOTALL)
+        if match:
+            return match.group(0)
+        return cleaned
 
 
 def run_sync(awaitable: Any) -> Any:
