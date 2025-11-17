@@ -82,11 +82,16 @@ class LlamaJsonAgent:
             text_val = getattr(raw, "text", None)
             candidate = text_val if text_val else ""
 
-        # 3) Response.message.content
+        # 3) Support "response" field as fallback (old format)
+        elif hasattr(raw, "response"):
+            response_val = getattr(raw, "response", None)
+            candidate = response_val if response_val else ""
+
+        # 4) Response.message.content
         elif hasattr(raw, "message") and raw.message:
             candidate = getattr(raw.message, "content", str(raw.message))
 
-        # 4) Fallback
+        # 5) Fallback
         else:
             candidate = str(raw) if raw else ""
 

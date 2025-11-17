@@ -59,13 +59,13 @@ class _GeminiWrapper:
     def complete(self, prompt: str):
         """Synchronous completion."""
         response_text = self._generate_text(prompt)
-        return SimpleNamespace(response=response_text)
+        return SimpleNamespace(text=response_text)
 
     async def acomplete(self, prompt: str):
         """Async completion."""
         loop = asyncio.get_event_loop()
         response_text = await loop.run_in_executor(None, self._generate_text, prompt)
-        return SimpleNamespace(response=response_text)
+        return SimpleNamespace(text=response_text)
 
     def _generate_text(self, prompt: str) -> str:
         """Extract raw text from Gemini."""
