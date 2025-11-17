@@ -15,7 +15,7 @@ class AppSettings(BaseSettings):
 
     llm_api_key: str = Field("", alias="LLM_API_KEY")
     llm_provider: Literal["openai"] = Field("openai", alias="LLM_PROVIDER")
-    llm_model: str = Field("gpt-4o-mini", alias="LLM_MODEL")
+    llm_model: str = Field("openai/gpt-oss-120b", alias="LLM_MODEL")
     llm_base_url: Optional[str] = Field(default=None, alias="LLM_BASE_URL")
 
     backend_host: str = Field("0.0.0.0", alias="BACKEND_HOST")
