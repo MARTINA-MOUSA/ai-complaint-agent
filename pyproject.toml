@@ -2,7 +2,7 @@
 name = "ai-complaint-agent"
 version = "0.1.0"
 description = "Multi-agent LlamaIndex system for Arabic customer complaint analysis with Streamlit frontend"
-requires-python = ">=3.10"
+requires-python = ">=3.10,<4.0"
 dependencies = [
     "fastapi>=0.115.0",
     "uvicorn[standard]>=0.30.0",
