@@ -6,7 +6,6 @@ from typing import Any, Optional
 
 from llama_index.core.agent import ReActAgent
 from llama_index.core.base.llms.types import CompletionResponse
-from llama_index.core.llms.types import ChatMessage, MessageRole
 from llama_index.core.tools import FunctionTool
 
 
