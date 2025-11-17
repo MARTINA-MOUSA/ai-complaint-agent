@@ -97,30 +97,28 @@ class LlamaJsonAgent:
 
     @staticmethod
     def _extract_json(text: str) -> str:
-        """Extract valid JSON from any messy model output."""
-        cleaned = text.strip()
+     cleaned = text.strip()
 
-        # Strip code fences
-        if cleaned.startswith("```"):
-            segments = cleaned.split("```")
-            if len(segments) >= 2:
-                cleaned = segments[1]
-            cleaned = re.sub(r"^\s*json", "", cleaned, flags=re.IGNORECASE).strip()
+    # 1) استخراج أي بلوك بين ``` ```
+     if "```" in cleaned:
+        segments = cleaned.split("```")
+        # بلوك JSON هو أي جزء يحتوي قوسين {}
+        for seg in segments:
+            if "{" in seg and "}" in seg:
+                cleaned = seg
+                break
 
-        cleaned = cleaned.strip()
+        # إزالة كلمة json أو JSON في بداية البلوك
+        cleaned = re.sub(r"^\s*(json)?", "", cleaned, flags=re.IGNORECASE).strip()
 
-        # If whole content is JSON
-        if cleaned.startswith("{") and cleaned.endswith("}"):
-            return LlamaJsonAgent._balance_braces(cleaned)
+    # 2) قص أول JSON كامل في النص
+     start = cleaned.find("{")
+     end = cleaned.rfind("}")
+     if start != -1 and end != -1 and end > start:
+        return LlamaJsonAgent._balance_braces(cleaned[start:end+1])
 
-        # Find JSON inside text
-        match = re.search(r"\{.*\}", cleaned, re.DOTALL)
-        if match:
-            return LlamaJsonAgent._balance_braces(match.group(0))
-
-        # Fallback (no JSON found)
-        return "{}"
-
+    # 3) fallback
+     return "{}"
     @staticmethod
     def _balance_braces(text: str) -> str:
         """Fix unbalanced braces from model output."""
