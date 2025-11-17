@@ -10,7 +10,7 @@ from core.schemas import ComplaintPayload, ComplaintCategory, RouterDecision
 
 
 ROUTER_SYSTEM_PROMPT = """
-انتِ Claude-4-Opus. دورك اختيار أفضل قسم داخلي للتعامل مع الشكوى.
+انتِ نموذج ذكاء اصطناعي. دورك اختيار أفضل قسم داخلي للتعامل مع الشكوى.
 التصنيفات المتاحة:
 - delivery_issue (مشاكل التوصيل، التأخير، تلف الشحنة)
 - payment_issue (الفوترة، المبالغ المستردة، البطاقات)

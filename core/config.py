@@ -8,7 +8,6 @@ from types import SimpleNamespace
 from typing import Literal, Optional
 
 import google.generativeai as genai
-from llama_index.llms.openai import OpenAI
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -47,29 +46,40 @@ class _GeminiWrapper:
 
     def __init__(self, model: str, api_key: str, temperature: float = 0.2) -> None:
         genai.configure(api_key=api_key)
+
         # Normalize model name: add 'models/' prefix if missing
         if not model.startswith("models/"):
             model_name = f"models/{model}"
         else:
             model_name = model
+
         self._model = genai.GenerativeModel(model_name=model_name)
         self._generation_config = {"temperature": temperature}
 
     def complete(self, prompt: str):
-        text = self._generate_text(prompt)
-        return SimpleNamespace(text=text)
+        """Synchronous completion."""
+        response_text = self._generate_text(prompt)
+        return SimpleNamespace(response=response_text)
 
     async def acomplete(self, prompt: str):
+        """Async completion."""
         loop = asyncio.get_event_loop()
-        text = await loop.run_in_executor(None, self._generate_text, prompt)
-        return SimpleNamespace(text=text)
+        response_text = await loop.run_in_executor(None, self._generate_text, prompt)
+        return SimpleNamespace(response=response_text)
 
     def _generate_text(self, prompt: str) -> str:
-        response = self._model.generate_content(prompt, generation_config=self._generation_config)
+        """Extract raw text from Gemini."""
+        response = self._model.generate_content(
+            prompt,
+            generation_config=self._generation_config
+        )
+
+        # Gemini sometimes returns text, sometimes candidates
         if hasattr(response, "text") and response.text:
             return response.text
-        if response.candidates:
+
+        if getattr(response, "candidates", None):
             parts = response.candidates[0].content.parts
             return "".join(getattr(part, "text", str(part)) for part in parts)
-        return ""
 
+        return ""

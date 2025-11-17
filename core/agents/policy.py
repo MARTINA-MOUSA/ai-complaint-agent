@@ -10,7 +10,7 @@ from core.schemas import ClassificationResult, ComplaintPayload, ResolutionBundl
 
 
 POLICY_SYSTEM_PROMPT = """
-انتِ Claude-4-Opus. راجعي المخرجات للتأكد من توافقها مع سياسات الشركة
+انتِ نموذج ذكاء اصطناعي . راجعي المخرجات للتأكد من توافقها مع سياسات الشركة
 ونبرة العلامة التجارية، وأعيدي أي تعديلات بصيغة JSON في حال الضرورة.
 """
 

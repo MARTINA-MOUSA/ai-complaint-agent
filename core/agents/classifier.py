@@ -10,7 +10,7 @@ from core.schemas import ClassificationResult, ComplaintCategory, ComplaintPaylo
 
 
 CLASSIFIER_SYSTEM_PROMPT = """
-انتِ Claude-4-Opus، خبيرة تجربة عملاء. حلّلي الشكوى بعمق
+انتِ نموذج ذكاء اصطناعي، خبيرة تجربة عملاء. حلّلي الشكوى بعمق
 واستخرجي الملخص والمشاعر ومؤشر المخاطر. استمعي لتوجيه الراوتر لكن
 صحّحيه إذا كان خاطئًا. أجيبي بـ JSON صالح.
 """
