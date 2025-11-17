@@ -28,8 +28,7 @@ class LlamaJsonAgent:
         if hasattr(self.llm, "acomplete"):
             raw = await self.llm.acomplete(full_prompt)
         elif hasattr(self.llm, "complete"):
-            loop = asyncio.get_running_loop()
-            raw = await loop.run_in_executor(None, self.llm.complete, full_prompt)
+            raw = await asyncio.to_thread(self.llm.complete, full_prompt)
         else:
             raise AttributeError("LLM does not support async completion")
         return self._ensure_json(raw)
