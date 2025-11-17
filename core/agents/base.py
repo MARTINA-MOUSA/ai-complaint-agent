@@ -43,14 +43,17 @@ class LlamaIndexAgent:
 
         class GeminiLLMAdapter(CustomLLM):
             def __init__(self, wrapped_llm):
-                super().__init__(
-                    model="gemini-2.5-flash",
-                    metadata=LLMMetadata(
-                        num_output=4096,
-                        is_chat_model=False,
-                    ),
-                )
                 self._wrapped = wrapped_llm
+                self._metadata = LLMMetadata(
+                    num_output=4096,
+                    is_chat_model=False,
+                )
+                super().__init__(model="gemini-2.5-flash")
+
+            @property
+            def metadata(self) -> LLMMetadata:
+                """Return LLM metadata."""
+                return self._metadata
 
             def complete(self, prompt: str, **kwargs):
                 result = self._wrapped.complete(prompt)
@@ -61,6 +64,16 @@ class LlamaIndexAgent:
                 result = await self._wrapped.acomplete(prompt)
                 text = self._extract_text(result)
                 return CompletionResponse(text=text)
+
+            def stream_complete(self, prompt: str, **kwargs):
+                """Stream completion - not implemented, fallback to complete."""
+                result = self.complete(prompt, **kwargs)
+                yield result
+
+            async def astream_complete(self, prompt: str, **kwargs):
+                """Async stream completion - not implemented, fallback to acomplete."""
+                result = await self.acomplete(prompt, **kwargs)
+                yield result
 
             @staticmethod
             def _extract_text(raw: Any) -> str:
