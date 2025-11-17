@@ -28,7 +28,7 @@ class LlamaJsonAgent:
         if hasattr(self.llm, "acomplete"):
             raw = await self.llm.acomplete(full_prompt)
         elif hasattr(self.llm, "complete"):
-            loop = asyncio.get_event_loop()
+            loop = asyncio.get_running_loop()
             raw = await loop.run_in_executor(None, self.llm.complete, full_prompt)
         else:
             raise AttributeError("LLM does not support async completion")
@@ -64,16 +64,25 @@ class LlamaJsonAgent:
     def _extract_json(text: str) -> str:
         cleaned = text.strip()
         if cleaned.startswith("```"):
-            cleaned = cleaned.strip("`")
-            if cleaned.startswith("json"):
-                cleaned = cleaned[4:]
+            segments = cleaned.split("```")
+            if len(segments) >= 2:
+                cleaned = segments[1]
+            cleaned = cleaned.replace("json", "", 1).strip()
         cleaned = cleaned.strip()
         if cleaned.startswith("{") and cleaned.endswith("}"):
-            return cleaned
-        match = re.search(r"\{.*\}", cleaned, re.DOTALL)
+            return LlamaJsonAgent._balance_braces(cleaned)
+        match = re.search(r"\{.*", cleaned, re.DOTALL)
         if match:
-            return match.group(0)
+            return LlamaJsonAgent._balance_braces(match.group(0))
         return cleaned
+
+    @staticmethod
+    def _balance_braces(text: str) -> str:
+        open_count = text.count("{")
+        close_count = text.count("}")
+        if close_count < open_count:
+            text += "}" * (open_count - close_count)
+        return text
 
 
 def run_sync(awaitable: Any) -> Any:
