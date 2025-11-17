@@ -25,19 +25,34 @@ class AppSettings(BaseSettings):
 
     def build_llm(self):
         if not self.llm_api_key:
-            raise ValueError("LLM_API_KEY missing. Please set it in your environment.")
+            raise ValueError("LLM_API_KEY missing. Please set it in your environment or Streamlit secrets.")
         if self.llm_provider == "gemini":
             return _GeminiWrapper(model=self.llm_model, api_key=self.llm_api_key, temperature=0.2)
-        return OpenAI(
-            model=self.llm_model,
-            api_key=self.llm_api_key,
-            base_url=self.llm_base_url,
-            temperature=0.2,
-        )
+        # For OpenAI, you would import and use OpenAI here
+        raise ValueError(f"LLM provider '{self.llm_provider}' is not yet supported. Use 'gemini'.")
 
 
 @lru_cache(maxsize=1)
 def get_settings() -> AppSettings:
+    """Get settings, supporting both .env files and Streamlit secrets."""
+    import os
+    
+    # When running on Streamlit Cloud, st.secrets is available
+    if "STREAMLIT_SERVER_PORT" in os.environ:
+        try:
+            import streamlit as st
+            secrets = st.secrets.to_dict()
+            # Map GOOGLE_API_KEY to LLM_API_KEY for Gemini compatibility
+            if "GOOGLE_API_KEY" in secrets and "LLM_API_KEY" not in secrets:
+                secrets["LLM_API_KEY"] = secrets["GOOGLE_API_KEY"]
+            # Ensure LLM_PROVIDER is set to gemini if not specified
+            if "LLM_PROVIDER" not in secrets:
+                secrets["LLM_PROVIDER"] = "gemini"
+            return AppSettings(**secrets)  # type: ignore[arg-type]
+        except Exception:
+            # Fallback to environment variables if st.secrets is not available
+            pass
+    
     return AppSettings()  # type: ignore[arg-type]
 
 

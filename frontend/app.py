@@ -1,9 +1,7 @@
 import asyncio
-import json
 import os
 import sys
 from pathlib import Path
-from typing import Dict, List
 
 import streamlit as st
 
@@ -26,16 +24,20 @@ def _ensure_llm_key() -> None:
         return
     if "LLM_API_KEY" in st.secrets:
         os.environ["LLM_API_KEY"] = st.secrets["LLM_API_KEY"]
+    # Also check for GOOGLE_API_KEY (Gemini)
+    if "GOOGLE_API_KEY" in st.secrets and "LLM_API_KEY" not in os.environ:
+        os.environ["LLM_API_KEY"] = st.secrets["GOOGLE_API_KEY"]
 
 
 @st.cache_resource
 def get_orchestrator() -> ComplaintOrchestrator:
     _ensure_llm_key()
     settings = get_settings()
-    return ComplaintOrchestrator(settings=settings)
+    return ComplaintOrchestrator(settings=settings, verbose_agents=True)
 
 
-def analyze_locally(payload: ComplaintPayload):
+def analyze_locally(payload: ComplaintPayload) -> str:
+    """Analyze complaint and return plain Arabic text."""
     orchestrator = get_orchestrator()
     return asyncio.run(orchestrator.aanalyze(payload))
 
@@ -66,47 +68,24 @@ if st.button("حلّل الشكوى", use_container_width=True) and complaint_te
         notes=notes or None,
     )
 
-    with st.spinner("جارٍ تحليل الشكوى عبر الوكلاء محليًا..."):
-        analysis = analyze_locally(payload_model)
+    with st.spinner("جارٍ تحليل الشكوى..."):
+        analysis_text = analyze_locally(payload_model)
 
-    st.success("تم توليد الخطة والرد بنجاح.")
-    st.info(
-        f"التصنيف | {analysis.category.value} | "
-        f"مستوى المخاطر | {analysis.risk_level} | "
-        f"الثقة | {analysis.router.confidence:.2f}"
-    )
-
-    st.subheader("١. ملخص المشكلة")
-    st.write(f"ملخص | {analysis.summary}")
-
-    st.subheader("٢. المشاعر الأساسية")
-    emotions_line = "، ".join(analysis.emotions) if analysis.emotions else "غير محدد"
-    st.write(f"مشاعر | {emotions_line}")
-
-    st.subheader("٣. إستراتيجية الحل المقترحة")
-    strategy_lines: List[str] = [
-        f"- {step.action_title} | المسؤول: {step.owner_role} | "
-        f"الجدول: {step.timeline} | المعيار: {step.success_metric}"
-        for step in analysis.strategy
-    ]
-    st.markdown("\n".join(strategy_lines))
-
-    st.subheader("٤. الرد الرسمي")
-    st.write(analysis.formal_reply)
-
-    st.session_state.history.append(
-        {
-            "summary": analysis.summary,
-            "category": analysis.category.value,
-            "reply": analysis.formal_reply,
-        }
-    )
+    st.success("تم توليد التحليل بنجاح.")
+    
+    # Display the analysis text directly
+    st.markdown("---")
+    st.markdown(analysis_text)
+    
+    # Save to history
+    st.session_state.history.append({
+        "complaint": complaint_text[:100] + "..." if len(complaint_text) > 100 else complaint_text,
+        "analysis": analysis_text[:500] + "..." if len(analysis_text) > 500 else analysis_text,
+    })
 
 if st.session_state.history:
+    st.markdown("---")
     st.markdown("## السجل الأخير")
     for idx, item in enumerate(reversed(st.session_state.history[-5:]), start=1):
-        st.markdown(f"### طلب {idx}")
-        st.text(f"التصنيف | {item['category']}")
-        st.text(f"الملخص | {item['summary']}")
-        st.text(f"الرد | {item['reply'][:140]}...")
-
+        with st.expander(f"طلب {idx}: {item['complaint']}"):
+            st.markdown(item['analysis'])
