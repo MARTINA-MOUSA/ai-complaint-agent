@@ -45,14 +45,21 @@ class LlamaJsonAgent:
     def _ensure_json(raw: Any) -> Dict[str, Any]:
         if isinstance(raw, dict):
             return raw
-        if hasattr(raw, "text"):
+        if raw is None:
+            raise ValueError("Agent returned empty payload.")
+
+        if hasattr(raw, "text") and raw.text:
             candidate = raw.text
-        elif hasattr(raw, "message"):
+        elif hasattr(raw, "message") and raw.message:
             candidate = getattr(raw.message, "content", raw.message)
-        elif hasattr(raw, "response"):
+        elif hasattr(raw, "response") and raw.response:
             candidate = raw.response
+        elif hasattr(raw, "candidates") and raw.candidates:
+            parts = getattr(raw.candidates[0].content, "parts", [])
+            candidate = "".join(getattr(part, "text", str(part)) for part in parts)
         else:
             candidate = str(raw)
+
         json_str = LlamaJsonAgent._extract_json(candidate)
         try:
             return json.loads(json_str)
@@ -66,14 +73,18 @@ class LlamaJsonAgent:
             segments = cleaned.split("```")
             if len(segments) >= 2:
                 cleaned = segments[1]
-            cleaned = cleaned.replace("json", "", 1).strip()
+            cleaned = re.sub(r"^\s*json", "", cleaned, flags=re.IGNORECASE).strip()
         cleaned = cleaned.strip()
         if cleaned.startswith("{") and cleaned.endswith("}"):
             return LlamaJsonAgent._balance_braces(cleaned)
-        match = re.search(r"\{.*", cleaned, re.DOTALL)
+        match = re.search(r"\{[^{}]*\}", cleaned, re.DOTALL)
         if match:
             return LlamaJsonAgent._balance_braces(match.group(0))
-        return cleaned
+        start = cleaned.find("{")
+        end = cleaned.rfind("}")
+        if start != -1 and end != -1 and end > start:
+            return LlamaJsonAgent._balance_braces(cleaned[start : end + 1])
+        return "{}"
 
     @staticmethod
     def _balance_braces(text: str) -> str:
@@ -81,6 +92,8 @@ class LlamaJsonAgent:
         close_count = text.count("}")
         if close_count < open_count:
             text += "}" * (open_count - close_count)
+        elif close_count > open_count:
+            text = "{" * (close_count - open_count) + text
         return text
 
 
