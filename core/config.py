@@ -47,7 +47,12 @@ class _GeminiWrapper:
 
     def __init__(self, model: str, api_key: str, temperature: float = 0.2) -> None:
         genai.configure(api_key=api_key)
-        self._model = genai.GenerativeModel(model_name=model)
+        # Normalize model name: add 'models/' prefix if missing
+        if not model.startswith("models/"):
+            model_name = f"models/{model}"
+        else:
+            model_name = model
+        self._model = genai.GenerativeModel(model_name=model_name)
         self._generation_config = {"temperature": temperature}
 
     def complete(self, prompt: str):

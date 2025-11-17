@@ -48,8 +48,8 @@ class LlamaJsonAgent:
         if raw is None:
             raise ValueError("Agent returned empty payload.")
 
-        if hasattr(raw, "text") and raw.text:
-            candidate = raw.text
+        if hasattr(raw, "text"):
+            candidate = getattr(raw, "text", None) or ""
         elif hasattr(raw, "message") and raw.message:
             candidate = getattr(raw.message, "content", raw.message)
         elif hasattr(raw, "response") and raw.response:
@@ -58,7 +58,7 @@ class LlamaJsonAgent:
             parts = getattr(raw.candidates[0].content, "parts", [])
             candidate = "".join(getattr(part, "text", str(part)) for part in parts)
         else:
-            candidate = str(raw)
+            candidate = str(raw) if raw else ""
 
         json_str = LlamaJsonAgent._extract_json(candidate)
         try:

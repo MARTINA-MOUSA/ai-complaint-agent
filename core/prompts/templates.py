@@ -26,16 +26,21 @@ def build_router_prompt(complaint: str, company: str, notes: str | None = None) 
         {extra}
 
         المطلوب:
-        1. استنتج نوع الشكوى (delivery_issue | payment_issue | technical_issue |
-           general_inquiry | return_exchange | other).
-        2. قيّم الثقة (0-1).
-        3. فسّر سبب التصنيف في جملة قصيرة.
+        1. استنتج نوع الشكوى من القائمة التالية:
+           - delivery_issue (مشكلة في التوصيل)
+           - payment_issue (مشكلة في الدفع)
+           - technical_issue (مشكلة تقنية)
+           - general_inquiry (استفسار عام)
+           - return_exchange (استرجاع/استبدال)
+           - other (أخرى)
+        2. قيّم مستوى الثقة في التصنيف (رقم بين 0.0 و 1.0).
+        3. اشرح سبب التصنيف في جملة واحدة بالعربية.
 
-        أجب بصيغة JSON:
+        IMPORTANT: أجب بصيغة JSON فقط، بدون markdown code blocks. استخدم المفتاح "category" بالإنجليزية والقيمة بالعربية.
         {{
-          "category": "...",
-          "confidence": 0.00,
-          "rationale": "..."
+          "category": "delivery_issue",
+          "confidence": 0.95,
+          "rationale": "الشكوى تتعلق بتأخر وصول الطلب"
         }}
         """
     ).strip()
@@ -61,12 +66,18 @@ def build_classifier_prompt(
         نص الشكوى: {complaint}
         {extra}
 
-        أجب بصيغة JSON مع الحقول:
+        المطلوب:
+        1. أكد أو صحح التصنيف (delivery_issue | payment_issue | technical_issue | general_inquiry | return_exchange | other).
+        2. اكتب ملخصًا موجزًا للمشكلة بالعربية (2-3 جمل).
+        3. حدد المشاعر الأساسية للعميل (مثل: غضب، إحباط، قلق، خيبة أمل، رضا).
+        4. قيّم مستوى المخاطر (low | medium | high).
+
+        IMPORTANT: أجب بصيغة JSON فقط، بدون markdown code blocks.
         {{
-          "category": "...",
-          "summary": "...",
-          "emotions": ["غضب", "قلق", ...],
-          "risk_level": "low|medium|high"
+          "category": "delivery_issue",
+          "summary": "العميل يشكو من تأخر وصول الطلب لمدة 5 أيام...",
+          "emotions": ["غضب", "إحباط"],
+          "risk_level": "high"
         }}
         """
     ).strip()
@@ -96,17 +107,27 @@ def build_resolution_prompt(
         - المشاعر: {emotion_line}
         {extra}
 
-        أجب بصيغة JSON:
+        المطلوب:
+        1. أنشئ خطة حل مكونة من 3-5 خطوات عملية.
+        2. اكتب ردًا رسميًا للعميل بالعربية.
+
+        IMPORTANT: أجب بصيغة JSON فقط، بدون markdown code blocks.
         {{
           "strategy": [
              {{
-               "action_title": "...",
-               "owner_role": "...",
-               "timeline": "...",
-               "success_metric": "..."
+               "action_title": "التحقق من حالة الطلب",
+               "owner_role": "فريق خدمة العملاء",
+               "timeline": "خلال 24 ساعة",
+               "success_metric": "تأكيد وصول الطلب للعميل"
+             }},
+             {{
+               "action_title": "متابعة مع شركة الشحن",
+               "owner_role": "قسم الشحن",
+               "timeline": "خلال 48 ساعة",
+               "success_metric": "حل مشكلة التأخير"
              }}
           ],
-          "formal_reply": "..."
+          "formal_reply": "عزيزي العميل، نشكرك على تواصلك معنا. نحن نتفهم إحباطك من تأخر وصول الطلب..."
         }}
         """
     ).strip()
@@ -135,15 +156,19 @@ def build_policy_prompt(
         الرد الرسمي: {formal_reply}
 
         المطلوب:
-        - عدّل الصياغة إذا لزم الأمر.
-        - تأكد من أن الرد يحتوي على خطوات التنفيذ كاملة.
+        1. راجع الملخص والمشاعر والاستراتيجية والرد الرسمي.
+        2. عدّل الصياغة إذا لزم الأمر لضمان الامتثال لسياسات الشركة.
+        3. تأكد من أن الرد الرسمي يحتوي على جميع خطوات التنفيذ بشكل واضح.
+        4. تأكد من أن جميع النصوص بالعربية فقط.
 
-        أجب بصيغة JSON:
+        IMPORTANT: أجب بصيغة JSON فقط، بدون markdown code blocks.
         {{
-          "summary": "...",
-          "emotions": [...],
-          "strategy": [...],
-          "formal_reply": "..."
+          "summary": "الملخص المعدل...",
+          "emotions": ["غضب", "إحباط"],
+          "strategy": [
+            {{"action_title": "...", "owner_role": "...", "timeline": "...", "success_metric": "..."}}
+          ],
+          "formal_reply": "الرد الرسمي المعدل..."
         }}
         """
     ).strip()
