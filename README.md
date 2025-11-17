@@ -12,7 +12,7 @@ Production-ready multi-agent system that classifies Arabic customer complaints f
 ## Quick Start
 1. Create a virtualenv (`python -m venv .venv && .venv\\Scripts\\activate`).
 2. Install dependencies: `pip install -e .[dev]`.
-3. Copy `env.example` to `.env` and fill `LLM_API_KEY`.
+3. Copy `env.example` to `.env` and fill `LLM_API_KEY` (defaults are set for Google Gemini `gemini-2.5-flash`; adjust if you prefer another provider).
 4. Run backend API: `uvicorn backend.main:app --reload`.
 5. Run Streamlit UI: `streamlit run frontend/app.py`.
 
