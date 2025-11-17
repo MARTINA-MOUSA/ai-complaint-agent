@@ -104,12 +104,41 @@ class LlamaJsonAgent:
 
         try:
             return json.loads(json_str)
+        except json.JSONDecodeError as exc:
+            # Show first 500 chars of the problematic JSON for debugging
+            preview = json_str[:500] if len(json_str) > 500 else json_str
+            raise ValueError(
+                f"Agent returned invalid JSON. Error: {exc.msg} at line {exc.lineno}, col {exc.colno}. "
+                f"JSON preview: {preview}... Original candidate: {candidate[:200]}..."
+            ) from exc
         except Exception as exc:
-            raise ValueError(f"Agent returned non-JSON payload: {candidate}") from exc
+            raise ValueError(f"Agent returned non-JSON payload: {candidate[:500]}...") from exc
 
     @staticmethod
     def _extract_json(text: str) -> str:
         cleaned = text.strip()
+
+        # 0) Remove namespace(...) wrapper patterns
+        # Handle patterns like: namespace(response='{...}') or namespace(text='{...}')
+        # Simple approach: find the JSON object directly, ignoring wrapper text
+        if "namespace(" in cleaned:
+            # Extract content between quotes after response= or text=
+            # Use a simpler approach: find the JSON object by looking for { and }
+            json_start = cleaned.find("{")
+            if json_start != -1:
+                # Find the matching closing brace
+                brace_count = 0
+                for i in range(json_start, len(cleaned)):
+                    if cleaned[i] == "{":
+                        brace_count += 1
+                    elif cleaned[i] == "}":
+                        brace_count -= 1
+                        if brace_count == 0:
+                            cleaned = cleaned[json_start:i+1]
+                            break
+                else:
+                    # No matching brace, use from { to end
+                    cleaned = cleaned[json_start:]
 
         # 1) استخراج أي بلوك بين ``` ```
         if "```" in cleaned:
@@ -123,13 +152,23 @@ class LlamaJsonAgent:
             # إزالة كلمة json أو JSON في بداية البلوك
             cleaned = re.sub(r"^\s*(json)?", "", cleaned, flags=re.IGNORECASE).strip()
 
-        # 2) قص أول JSON كامل في النص
+        # 2) Remove any leading/trailing quotes or whitespace
+        cleaned = cleaned.strip().strip("'\"")
+        
+        # 3) قص أول JSON كامل في النص
         start = cleaned.find("{")
         end = cleaned.rfind("}")
         if start != -1 and end != -1 and end > start:
-            return LlamaJsonAgent._balance_braces(cleaned[start:end+1])
+            extracted = cleaned[start:end+1]
+            # Convert escape sequences to actual characters (but preserve them inside JSON string values)
+            # Only convert \n and \t that are outside of string values
+            # Simple approach: replace common escape sequences
+            extracted = extracted.replace("\\n", "\n").replace("\\t", "\t").replace("\\r", "\r")
+            # Remove any trailing commas before closing braces
+            extracted = re.sub(r',(\s*[}\]])', r'\1', extracted)
+            return LlamaJsonAgent._balance_braces(extracted)
 
-        # 3) fallback
+        # 4) fallback
         return "{}"
 
     @staticmethod
